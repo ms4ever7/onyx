@@ -27,9 +27,9 @@ const components: { title: string; href: string; description: string }[] = [
     description: "View your assets and transaction history"
   },
   {
-    title: "Staking",
-    href: "/staking",
-    description: "Stake tokens to earn rewards"
+    title: "Arbitrage 😂",
+    href: "/swap/uniswap-diff",
+    description: "Compare uniswap versions"
   },
   {
     title: "Pools",

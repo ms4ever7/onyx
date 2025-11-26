@@ -8,7 +8,7 @@ export function useCoinPrice(coinId: string) {
   return useQuery({
     queryKey: ['coin-price', coinId],
     queryFn: () => fetchCoinData(coinId),
-    refetchInterval: 60000, // Refetch every 60 seconds
+    refetchInterval: 60000,
     enabled: !!coinId,
   })
 }
@@ -20,7 +20,7 @@ export function useCoinChart(coinId: string, days: number | 'max' = 7) {
   return useQuery({
     queryKey: ['coin-chart', coinId, days],
     queryFn: () => fetchCoinChart(coinId, days),
-    refetchInterval: 120000, // Refetch every 2 minutes
+    refetchInterval: 120000,
     enabled: !!coinId,
   })
 }
@@ -32,7 +32,7 @@ export function useTopCoins(limit = 100) {
   return useQuery({
     queryKey: ['top-coins', limit],
     queryFn: () => fetchCoinListFromCoinGecko(),
-    refetchInterval: 300000, // Refetch every 5 minutes
-    staleTime: 60000, // Consider data stale after 1 minute
+    refetchInterval: 300000,
+    staleTime: 60000,
   })
 }

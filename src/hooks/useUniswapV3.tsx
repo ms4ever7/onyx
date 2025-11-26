@@ -1,6 +1,7 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { parseUnits } from 'viem'
-import { UNISWAP_V3_ADDRESSES, ERC20_ABI, type Token, UNISWAP_V3_ROUTER_ABI, UNISWAP_V3_QUOTER_V2_ABI } from '@/lib/contracts/uniswap-v3'
+import { UNISWAP_V3_ADDRESSES, ERC20_ABI, UNISWAP_V3_ROUTER_ABI, UNISWAP_V3_QUOTER_V2_ABI } from '@/lib/contracts/uniswap-v3'
+import { type Token } from '@/lib/contracts/uniswap-v2'
 import { useMemo } from 'react'
 
 export function useMultiFeeQuote(
