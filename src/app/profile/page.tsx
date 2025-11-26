@@ -1,6 +1,5 @@
 'use client'
 
-import { useAccount, useBalance, useEnsName } from 'wagmi'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Copy, ExternalLink, Wallet } from 'lucide-react'

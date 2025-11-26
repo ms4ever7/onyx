@@ -17,13 +17,13 @@ import { ConnectButton } from "@/components/web3/connect-button"
 
 const components: { title: string; href: string; description: string }[] = [
   {
-    title: "Swap",
-    href: "/swap",
+    title: "Swap Uniswap V2",
+    href: "/swap/v2",
     description: "Exchange tokens instantly with best rates"
   },
   {
-    title: "Portfolio",
-    href: "/profile", 
+    title: "Swap Uniswap V3",
+    href: "/swap/v3", 
     description: "View your assets and transaction history"
   },
   {
