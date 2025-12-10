@@ -1,9 +1,19 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-html, body, #root {
-  height: 100%;
+/* 1. Ensure HTML takes up the full viewport height */
+html {
+  min-height: 100%;
 }
+
+/* 2. Apply background to the body and ensure it stretches to match the HTML */
+body {
+  min-height: 100vh; /* Takes at least 100% of the viewport height */
+}
+
+/* html, body, #root {
+  height: 100%;
+} */
 
 @custom-variant dark (&:is(.dark *));
 

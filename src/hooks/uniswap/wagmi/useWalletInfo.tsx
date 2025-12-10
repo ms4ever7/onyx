@@ -1,4 +1,4 @@
-import { useAccount, useBalance, useEnsName, useEnsAvatar, useTransaction } from 'wagmi'
+import { useAccount, useBalance, useEnsName, useEnsAvatar } from 'wagmi'
 import { formatEther } from 'viem'
 
 /**

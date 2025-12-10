@@ -4,22 +4,30 @@ import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ArrowRight, TrendingUp, TrendingDown, Info, RefreshCw } from 'lucide-react'
-import { useSwapQuote as useV2Quote } from '@/hooks/useUniswapV2'
-import { useMultiFeeQuote as useV3Quote } from '@/hooks/useUniswapV3'
-import { COMMON_TOKENS as V2_TOKENS, type Token as V2Token } from '@/lib/contracts/uniswap-v2'
+import { ArrowRight, TrendingUp, TrendingDown, Info } from 'lucide-react'
+import { useSwapQuote as useV2Quote } from '@/hooks/uniswap/wagmi/useUniswapV2Wagmi'
+import { useMultiFeeQuote as useV3Quote } from '@/hooks/uniswap/wagmi/useUniswapV3Wagmi'
 import { formatUnits } from 'viem'
 import Image from 'next/image'
 import { ChainSwitcher } from '@/components/web3/chain-switcher'
 import { useAccount } from 'wagmi'
+import { Token } from '@/lib/utils/token'
+import { useTokenList } from '@/hooks/useTokenList'
+import TokenSelector from '../token-selector'
+import { Loader2 } from 'lucide-react'
+import { resolveLogo } from '@/lib/api/token-list'
 
-const TRADING_PAIRS = [
-  { tokenIn: 'WETH', tokenOut: 'USDC', label: 'ETH/USDC' },
-  { tokenIn: 'WETH', tokenOut: 'USDT', label: 'ETH/USDT' },
-  { tokenIn: 'WETH', tokenOut: 'DAI', label: 'ETH/DAI' },
-  { tokenIn: 'WBTC', tokenOut: 'USDC', label: 'WBTC/USDC' },
-  { tokenIn: 'UNI', tokenOut: 'USDC', label: 'UNI/USDC' },
-  { tokenIn: 'LINK', tokenOut: 'USDC', label: 'LINK/USDC' },
+
+/**
+ * Helper to define a few popular pairs based on token symbols.
+ * These will be resolved into full Token objects using the fetched token list.
+ */
+const POPULAR_PAIR_SYMBOLS = [
+  { tokenInSymbol: 'WETH', tokenOutSymbol: 'USDC', label: 'ETH/USDC' },
+  { tokenInSymbol: 'WETH', tokenOutSymbol: 'USDT', label: 'ETH/USDT' },
+  { tokenInSymbol: 'WBTC', tokenOutSymbol: 'USDC', label: 'WBTC/USDC' },
+  { tokenInSymbol: 'UNI', tokenOutSymbol: 'WETH', label: 'UNI/WETH' },
+  { tokenInSymbol: 'LINK', tokenOutSymbol: 'USDC', label: 'LINK/USDC' },
 ]
 
 function PairComparison({
@@ -28,66 +36,94 @@ function PairComparison({
   amount,
   label,
 }: {
-  tokenIn: V2Token
-  tokenOut: V2Token
+  tokenIn: Token
+  tokenOut: Token
   amount: string
   label: string
 }) {
+  const tokenInAmount = amount || '0';  
   // V2 Quote
-  const { data: v2Quote, isLoading: v2Loading } = useV2Quote(amount, tokenIn, tokenOut)
+  const { data: v2Quote, isLoading: v2Loading } = useV2Quote(tokenInAmount, tokenIn, tokenOut);
 
   // V3 Quote (best across all fees)
   const { bestQuote: v3Quote, bestFee, isLoading: v3Loading } = useV3Quote(
-    amount,
+    tokenInAmount,
     tokenIn,
     tokenOut
-  )
+  );
 
   const v2Output = v2Quote && v2Quote[1] 
     ? parseFloat(formatUnits(v2Quote[1], tokenOut.decimals))
-    : 0
+    : 0;
 
   const v3Output = v3Quote && v3Quote[0]
     ? parseFloat(formatUnits(v3Quote[0], tokenOut.decimals))
-    : 0
+    : 0;
 
-  const difference = v2Output && v3Output ? v3Output - v2Output : 0
-  const percentDiff = v2Output ? (difference / v2Output) * 100 : 0
-  const v3IsBetter = difference > 0
+  // Calculation logic remains the same
+  const difference = v2Output && v3Output ? v3Output - v2Output : 0;
+  const percentDiff = v2Output ? (difference / v2Output) * 100 : 0;
+  const v3IsBetter = difference > 0;
 
-  const isLoading = v2Loading || v3Loading
+  const isLoading = v2Loading || v3Loading;
+
+  const getImageEl = (src: string, token: Token) => {
+      const isIpfs = src.includes("ipfs");
+  
+      return isIpfs ? (
+        <img
+          src={resolveLogo(src)}
+          alt={token.symbol}
+          width={32}
+          height={32}
+          className="rounded-full"
+        />
+      ) : (
+        <Image
+          src={src}
+          alt={token.symbol}
+          width={32}
+          height={32}
+          className="rounded-full"
+        />
+      );
+  }
 
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Image src={tokenIn.logo} alt={tokenIn.symbol} width={20} height={20} className="rounded-full" />
+            {tokenIn.logo && getImageEl(tokenIn.logo, tokenIn)}
             <span>{label}</span>
             <span className="text-muted-foreground text-sm">
               ({amount} {tokenIn.symbol})
             </span>
           </div>
-          {v3IsBetter ? (
-            <span className="text-xs bg-green-500/10 text-green-500 px-2 py-1 rounded">
-              V3 Better
-            </span>
-          ) : (
-            <span className="text-xs bg-red-500/10 text-red-500 px-2 py-1 rounded">
-              V2 Better
-            </span>
+          {/* Show comparison result */}
+          {v2Output > 0 && v3Output > 0 && (
+            v3IsBetter ? (
+              <span className="text-xs bg-green-500/10 text-green-500 px-2 py-1 rounded">
+                V3 Better
+              </span>
+            ) : (
+              <span className="text-xs bg-red-500/10 text-red-500 px-2 py-1 rounded">
+                V2 Better
+              </span>
+            )
           )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {isLoading ? (
-          <div className="text-center py-4 text-sm text-muted-foreground">
+          <div className="text-center py-4 text-sm text-muted-foreground flex items-center justify-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
             Loading quotes...
           </div>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <div className={`p-3 rounded-lg border ${!v3IsBetter ? 'border-green-500 bg-green-500/5' : 'border-border'}`}>
+              <div className={`p-3 rounded-lg border ${!v3IsBetter && v2Output > 0 ? 'border-green-500 bg-green-500/5' : 'border-border'}`}>
                 <div className="text-xs text-muted-foreground mb-1">Uniswap V2</div>
                 <div className="font-mono text-lg font-bold">
                   {v2Output > 0 ? v2Output.toFixed(4) : '-'}
@@ -97,13 +133,13 @@ function PairComparison({
                 </div>
               </div>
 
-              <div className={`p-3 rounded-lg border ${v3IsBetter ? 'border-green-500 bg-green-500/5' : 'border-border'}`}>
+              <div className={`p-3 rounded-lg border ${v3IsBetter && v3Output > 0 ? 'border-green-500 bg-green-500/5' : 'border-border'}`}>
                 <div className="text-xs text-muted-foreground mb-1">Uniswap V3</div>
                 <div className="font-mono text-lg font-bold">
                   {v3Output > 0 ? v3Output.toFixed(4) : '-'}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  Fee: {bestFee ? (bestFee / 10000).toFixed(2) : '0'}%
+                  Fee: {bestFee !== undefined ? (bestFee / 10000).toFixed(2) : '-'}%
                 </div>
               </div>
             </div>
@@ -123,6 +159,11 @@ function PairComparison({
                 </div>
               </div>
             )}
+            {(v2Output === 0 && !v2Loading) && (v3Output === 0 && !v3Loading) && (
+                 <div className="text-center py-2 text-sm text-yellow-500">
+                    No active pool found for this pair.
+                 </div>
+            )}
           </>
         )}
       </CardContent>
@@ -130,12 +171,53 @@ function PairComparison({
   )
 }
 
+// Main Component
 export default function UniswapDiffPage() {
   const { chain } = useAccount()
+  // Use the hook to fetch tokens
+  const { tokens, popularTokens, isLoading: isTokenListLoading } = useTokenList()
+
   const [amount, setAmount] = useState('1')
   const [customPair, setCustomPair] = useState(false)
-  const [selectedTokenIn, setSelectedTokenIn] = useState<keyof typeof V2_TOKENS>('WETH')
-  const [selectedTokenOut, setSelectedTokenOut] = useState<keyof typeof V2_TOKENS>('USDC')
+  
+  // Use Token | null state
+  const [selectedTokenIn, setSelectedTokenIn] = useState<Token | null>(null)
+  const [selectedTokenOut, setSelectedTokenOut] = useState<Token | null>(null)
+  
+  // Initialize with popular tokens when the list is ready
+  useMemo(() => {
+    if (popularTokens.length > 0) {
+        if (!selectedTokenIn) {
+            setSelectedTokenIn(popularTokens.find(t => t.symbol.toUpperCase() === 'WETH') || popularTokens[0]);
+        }
+        if (!selectedTokenOut) {
+            setSelectedTokenOut(popularTokens.find(t => t.symbol.toUpperCase() === 'USDC') || popularTokens[1]);
+        }
+    }
+  }, [popularTokens, selectedTokenIn, selectedTokenOut])
+
+
+  // Resolve popular pairs into Token objects
+  const resolvedPopularPairs = useMemo(() => {
+    if (isTokenListLoading || tokens.length === 0) return []
+    
+    // Create a map for quick lookup
+    const tokenMap = new Map(tokens.map(token => [token.symbol.toUpperCase(), token]))
+
+    return POPULAR_PAIR_SYMBOLS.map(pair => {
+      const tokenIn = tokenMap.get(pair.tokenInSymbol.toUpperCase())
+      const tokenOut = tokenMap.get(pair.tokenOutSymbol.toUpperCase())
+      
+      if (tokenIn && tokenOut) {
+        return {
+          tokenIn,
+          tokenOut,
+          label: pair.label,
+        }
+      }
+      return null
+    }).filter((pair): pair is { tokenIn: Token, tokenOut: Token, label: string } => pair !== null)
+  }, [tokens, isTokenListLoading])
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -180,32 +262,24 @@ export default function UniswapDiffPage() {
               <div className="flex gap-4 items-center p-4 bg-muted rounded-lg">
                 <div className="flex-1">
                   <label className="text-xs text-muted-foreground mb-1 block">From</label>
-                  <select
-                    value={selectedTokenIn}
-                    onChange={(e) => setSelectedTokenIn(e.target.value as keyof typeof V2_TOKENS)}
-                    className="w-full p-2 rounded border bg-background"
-                  >
-                    {Object.keys(V2_TOKENS).map((symbol) => (
-                      <option key={symbol} value={symbol}>
-                        {symbol}
-                      </option>
-                    ))}
-                  </select>
+                  <TokenSelector
+                    token={selectedTokenIn}
+                    onSelect={setSelectedTokenIn}
+                    tokens={tokens}
+                    popularTokens={popularTokens}
+                    isLoading={isTokenListLoading}
+                  />
                 </div>
                 <ArrowRight className="h-5 w-5 text-muted-foreground mt-5" />
                 <div className="flex-1">
                   <label className="text-xs text-muted-foreground mb-1 block">To</label>
-                  <select
-                    value={selectedTokenOut}
-                    onChange={(e) => setSelectedTokenOut(e.target.value as keyof typeof V2_TOKENS)}
-                    className="w-full p-2 rounded border bg-background"
-                  >
-                    {Object.keys(V2_TOKENS).map((symbol) => (
-                      <option key={symbol} value={symbol}>
-                        {symbol}
-                      </option>
-                    ))}
-                  </select>
+                  <TokenSelector
+                    token={selectedTokenOut}
+                    onSelect={setSelectedTokenOut}
+                    tokens={tokens}
+                    popularTokens={popularTokens}
+                    isLoading={isTokenListLoading}
+                  />
                 </div>
               </div>
             )}
@@ -219,33 +293,43 @@ export default function UniswapDiffPage() {
           </CardContent>
         </Card>
 
-        {customPair && (
-          <PairComparison
-            tokenIn={V2_TOKENS[selectedTokenIn]}
-            tokenOut={V2_TOKENS[selectedTokenOut]}
-            amount={amount}
-            label={`${selectedTokenIn}/${selectedTokenOut}`}
-          />
-        )}
-
-        {!customPair && (
+        {isTokenListLoading ? (
+            <div className="text-center py-8 text-xl text-muted-foreground flex items-center justify-center gap-2">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                Loading token list...
+            </div>
+        ) : customPair ? (
+          // Custom Pair
+          selectedTokenIn && selectedTokenOut ? (
+            <PairComparison
+              tokenIn={selectedTokenIn}
+              tokenOut={selectedTokenOut}
+              amount={amount}
+              label={`${selectedTokenIn.symbol}/${selectedTokenOut.symbol}`}
+            />
+          ) : (
+            <div className="text-center py-8 text-lg text-muted-foreground">
+              Select tokens for custom comparison.
+            </div>
+          )
+        ) : (
+          // Popular Pairs
           <div className="grid md:grid-cols-2 gap-4">
-            {TRADING_PAIRS.map((pair) => {
-              const tokenIn = V2_TOKENS[pair.tokenIn as keyof typeof V2_TOKENS]
-              const tokenOut = V2_TOKENS[pair.tokenOut as keyof typeof V2_TOKENS]
-              
-              if (!tokenIn || !tokenOut) return null
-
-              return (
-                <PairComparison
-                  key={pair.label}
-                  tokenIn={tokenIn}
-                  tokenOut={tokenOut}
-                  amount={amount}
-                  label={pair.label}
-                />
-              )
-            })}
+            {resolvedPopularPairs.length > 0 ? (
+                resolvedPopularPairs.map((pair) => (
+                  <PairComparison
+                    key={pair.label}
+                    tokenIn={pair.tokenIn}
+                    tokenOut={pair.tokenOut}
+                    amount={amount}
+                    label={pair.label}
+                  />
+                ))
+            ) : (
+                <div className="md:col-span-2 text-center py-8 text-lg text-muted-foreground">
+                    No popular pairs available for this chain.
+                </div>
+            )}
           </div>
         )}
       </div>

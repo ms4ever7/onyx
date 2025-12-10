@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Copy, ExternalLink, Wallet } from 'lucide-react'
 import { useState } from 'react'
 import { formatEther } from 'viem'
-import { useWalletInfo } from '@/hooks/useWalletInfo'
+import { useWalletInfo } from '@/hooks/uniswap/wagmi/useWalletInfo'
 
 export default function ProfilePage() {
 const { 

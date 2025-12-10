@@ -1,6 +1,7 @@
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi'
 import { parseUnits } from 'viem'
-import { UNISWAP_V2_ADDRESSES, UNISWAP_V2_ROUTER_ABI, ERC20_ABI, type Token } from '@/lib/contracts/uniswap-v2'
+import { UNISWAP_V2_ADDRESSES, UNISWAP_V2_ROUTER_ABI, ERC20_ABI, COMMON_TOKENS, getUniswapV2Addresses } from '@/lib/contracts/uniswap-v2'
+import { Token, toRouteAddress } from '@/lib/utils/token'
  
 /**
  * Get estimated output amount for a swap
@@ -10,23 +11,33 @@ export function useSwapQuote(
   tokenIn: Token | null,
   tokenOut: Token | null
 ) {
-  const path = tokenIn && tokenOut ? [tokenIn.address, tokenOut.address] : []
-  
-  const amountInParsed = amountIn && tokenIn
-    ? parseUnits(amountIn, tokenIn.decimals)
-    : 0n
+  const chainId = useChainId();
+  const path =
+    tokenIn && tokenOut
+      ? [toRouteAddress(tokenIn), toRouteAddress(tokenOut)]
+      : []
+  const amountInParsed =
+    amountIn && tokenIn
+      ? parseUnits(amountIn, tokenIn.decimals)
+      : 0n
+  const addresses = getUniswapV2Addresses(chainId)
 
   return useReadContract({
-    address: UNISWAP_V2_ADDRESSES.ROUTER,
+    address: addresses.ROUTER,
     abi: UNISWAP_V2_ROUTER_ABI,
-    functionName: 'getAmountsOut',
+    functionName: "getAmountsOut",
     args: [amountInParsed, path],
     query: {
-      enabled: !!tokenIn && !!tokenOut && !!amountIn && parseFloat(amountIn) > 0,
-      refetchInterval: 10000, // Refresh every 10s
+      enabled:
+        !!tokenIn &&
+        !!tokenOut &&
+        !!amountIn &&
+        parseFloat(amountIn) > 0,
+      refetchInterval: 10000,
     },
   })
 }
+
 
 /**
  * Get token balance
@@ -50,11 +61,14 @@ export function useTokenAllowance(
   tokenAddress: `0x${string}` | undefined,
   ownerAddress: `0x${string}` | undefined
 ) {
+  const chainId = useChainId();
+  const addresses = getUniswapV2Addresses(chainId)
+
   return useReadContract({
     address: tokenAddress,
     abi: ERC20_ABI,
     functionName: 'allowance',
-    args: ownerAddress ? [ownerAddress, UNISWAP_V2_ADDRESSES.ROUTER] : undefined,
+    args: ownerAddress ? [ownerAddress, addresses.ROUTER] : undefined,
     query: {
       enabled: !!tokenAddress && !!ownerAddress,
     },
@@ -70,13 +84,15 @@ export function useApproveToken() {
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash,
   })
+  const chainId = useChainId();
+  const addresses = getUniswapV2Addresses(chainId)
 
-  const approve = (tokenAddress: `0x${string}`, amount: bigint) => {
+  const approve = (token: Token, amount: bigint) => {
     writeContract({
-      address: tokenAddress,
+      address: toRouteAddress(token),
       abi: ERC20_ABI,
       functionName: 'approve',
-      args: [UNISWAP_V2_ADDRESSES.ROUTER, amount],
+      args: [addresses.ROUTER, amount],
     })
   }
 
@@ -98,6 +114,9 @@ export function useSwapTokens() {
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash,
   })
+  const chainId = useChainId();
+  const addresses = getUniswapV2Addresses(chainId)
+
 
   const swap = (
     amountIn: string,
@@ -107,7 +126,10 @@ export function useSwapTokens() {
     userAddress: `0x${string}`,
     slippageTolerance: number = 0.5
   ) => {
-    const path = [tokenIn.address, tokenOut.address]
+    const path =
+    tokenIn && tokenOut
+      ? [toRouteAddress(tokenIn), toRouteAddress(tokenOut)]
+      : []
     const amountInParsed = parseUnits(amountIn, tokenIn.decimals)
     const amountOutMinParsed = parseUnits(amountOutMin, tokenOut.decimals)
     
@@ -119,7 +141,7 @@ export function useSwapTokens() {
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20)
 
     writeContract({
-      address: UNISWAP_V2_ADDRESSES.ROUTER,
+      address: addresses.ROUTER,
       abi: UNISWAP_V2_ROUTER_ABI,
       functionName: 'swapExactTokensForTokens',
       args: [amountInParsed, amountOutWithSlippage, path, userAddress, deadline],

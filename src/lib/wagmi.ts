@@ -1,5 +1,5 @@
 import { cookieStorage, createStorage } from 'wagmi'
-import { mainnet, polygon, arbitrum, optimism, base } from 'wagmi/chains'
+import { mainnet, polygon, arbitrum, optimism, base, sepolia } from 'wagmi/chains'
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 
 export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID || '77b207c23c6638bd9b44e433c5609655'
@@ -14,6 +14,7 @@ export const SUPPORTED_CHAINS = [
   arbitrum,
   optimism,
   base,
+  sepolia
 ]
 
 // Create wagmi adapter
@@ -35,6 +36,12 @@ export const CHAIN_INFO = {
     icon: '⟠',
     color: '#627EEA',
     explorers: mainnet.blockExplorers.default.url,
+  },
+  [sepolia.id]: {
+    name: 'Sepolia',
+    icon: '⟠',
+    color: '#627EEA',
+    explorers: sepolia.blockExplorers.default.url,
   },
   [polygon.id]: {
     name: 'Polygon',

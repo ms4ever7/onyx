@@ -1,8 +1,8 @@
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi'
 import { parseUnits } from 'viem'
-import { UNISWAP_V3_ADDRESSES, ERC20_ABI, UNISWAP_V3_ROUTER_ABI, UNISWAP_V3_QUOTER_V2_ABI } from '@/lib/contracts/uniswap-v3'
-import { type Token } from '@/lib/contracts/uniswap-v2'
+import { ERC20_ABI, UNISWAP_V3_ROUTER_ABI, UNISWAP_V3_QUOTER_V2_ABI, getUniswapV3Addresses } from '@/lib/contracts/uniswap-v3'
 import { useMemo } from 'react'
+import { Token, toRouteAddress } from '@/lib/utils/token'
 
 export function useMultiFeeQuote(
   amountIn: string,
@@ -61,14 +61,18 @@ export function useSwapQuote(
 ) {
   const amountInParsed =
     amountIn && tokenIn ? parseUnits(amountIn, tokenIn.decimals) : 0n
+  const chainId = useChainId();
+  const addresses = getUniswapV3Addresses(chainId)
+
+    
 
   return useReadContract({
-    address: UNISWAP_V3_ADDRESSES.QUOTER_V2,
+    address: addresses.QUOTER_V2!,
     abi: UNISWAP_V3_QUOTER_V2_ABI,
     functionName: 'quoteExactInputSingle',
     args: tokenIn && tokenOut ? [{
-      tokenIn: tokenIn.address,
-      tokenOut: tokenOut.address,
+      tokenIn: toRouteAddress(tokenIn),
+      tokenOut: toRouteAddress(tokenOut),
       amountIn: amountInParsed,
       fee: fee,
       sqrtPriceLimitX96: 0n
@@ -87,14 +91,14 @@ export function useSwapQuote(
 /**
  * Get token balance
  */
-export function useTokenBalance(tokenAddress: `0x${string}` | undefined, userAddress: `0x${string}` | undefined) {
+export function useTokenBalance(token: Token | null, userAddress: `0x${string}` | undefined) {
   return useReadContract({
-    address: tokenAddress,
+    address: toRouteAddress(token!),
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: userAddress ? [userAddress] : undefined,
     query: {
-      enabled: !!tokenAddress && !!userAddress,
+      enabled: !!token && !!userAddress,
     },
   })
 }
@@ -103,18 +107,23 @@ export function useTokenBalance(tokenAddress: `0x${string}` | undefined, userAdd
  * Get token allowance (how much user has approved for router)
  */
 export function useTokenAllowance(
-  tokenAddress: `0x${string}` | undefined,
+  tokenAddress: Token | null,
   ownerAddress: `0x${string}` | undefined
 ) {
+  const chainId = useChainId();
+  const addresses = getUniswapV3Addresses(chainId)
+
+  const enabled = Boolean(tokenAddress && ownerAddress);
+  
   return useReadContract({
-    address: tokenAddress,
+    address: tokenAddress ? toRouteAddress(tokenAddress) : undefined,
     abi: ERC20_ABI,
     functionName: 'allowance',
-    args: ownerAddress ? [ownerAddress, UNISWAP_V3_ADDRESSES.ROUTER] : undefined,
+    args: enabled ? [ownerAddress!, addresses.ROUTER] : undefined,
     query: {
-      enabled: !!tokenAddress && !!ownerAddress,
+      enabled,
     },
-  })
+  });
 }
 
 /**
@@ -127,12 +136,15 @@ export function useApproveToken() {
     hash,
   })
 
-  const approve = (tokenAddress: `0x${string}`, amount: bigint) => {
+  const chainId = useChainId();
+  const addresses = getUniswapV3Addresses(chainId)
+
+  const approve = (token: Token, amount: bigint) => {
     writeContract({
-      address: tokenAddress,
+      address: toRouteAddress(token),
       abi: ERC20_ABI,
       functionName: 'approve',
-      args: [UNISWAP_V3_ADDRESSES.ROUTER, amount],
+      args: [addresses.ROUTER, amount],
     })
   }
 
@@ -154,6 +166,8 @@ export function useSwapTokens() {
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash,
   })
+  const chainId = useChainId();
+  const addresses = getUniswapV3Addresses(chainId)
 
   const swap = (
     amountIn: string,
@@ -164,6 +178,7 @@ export function useSwapTokens() {
     fee: number, // Fee tier from quote
     userAddress: `0x${string}`
   ) => {
+
     const amountInParsed = parseUnits(amountIn, tokenIn.decimals)
     const amountOutMinParsed = parseUnits(amountOutMin, tokenOut.decimals)
     
@@ -175,12 +190,12 @@ export function useSwapTokens() {
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20)
 
     writeContract({
-      address: UNISWAP_V3_ADDRESSES.ROUTER,
+      address: addresses.ROUTER,
       abi: UNISWAP_V3_ROUTER_ABI,
       functionName: 'exactInputSingle',
       args: [{
-        tokenIn: tokenIn.address,
-        tokenOut: tokenOut.address,
+        tokenIn: toRouteAddress(tokenIn),
+        tokenOut: toRouteAddress(tokenOut),
         fee: fee, // Use the fee tier from the best quote
         recipient: userAddress,
         deadline: deadline,

@@ -5,26 +5,31 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ArrowDown, Settings, Loader2, CheckCircle2, Info } from 'lucide-react'
-import { useWalletInfo } from '@/hooks/useWalletInfo'
-import { useMultiFeeQuote, useTokenBalance, useTokenAllowance, useApproveToken, useSwapTokens } from '@/hooks/useUniswapV3'
-import { COMMON_TOKENS, type Token } from '@/lib/contracts/uniswap-v2'
+import { useWalletInfo } from '@/hooks/uniswap/wagmi/useWalletInfo'
+import { useMultiFeeQuote, useTokenAllowance, useApproveToken, useSwapTokens } from '@/hooks/uniswap/wagmi/useUniswapV3Wagmi'
+import { useTokenBalance } from '@/hooks/uniswap/useTokenBalance'
 import { formatUnits, parseUnits } from 'viem'
-import Image from 'next/image'
 import { useAccount } from 'wagmi'
 import { ChainSwitcher } from '@/components/web3/chain-switcher'
+import { Token } from '@/lib/utils/token'
+import { useTokenList } from '@/hooks/useTokenList'
+import TokenSelector from '../token-selector'
+import { useTokenAllowanceV3 } from '@/hooks/uniswap/v3/useTokenAllowanceV3'
 
 export default function UniswapV3SwapPage() {
   const { address, isConnected } = useWalletInfo()
+  const { tokens, popularTokens, isLoading } = useTokenList()
   
-  const [tokenIn, setTokenIn] = useState<Token>(COMMON_TOKENS.USDC)
-  const [tokenOut, setTokenOut] = useState<Token>(COMMON_TOKENS.UNI)
+  const [tokenIn, setTokenIn] = useState<Token | null>(null)
+  const [tokenOut, setTokenOut] = useState<Token | null>(null)
   const [amountIn, setAmountIn] = useState('')
   const [slippage, setSlippage] = useState('0.5')
   const [showSettings, setShowSettings] = useState(false)
   const { chain } = useAccount()
 
-  const { data: balanceIn, refetch: refetchBalanceIn } = useTokenBalance(tokenIn.address, address)
-  const { data: balanceOut } = useTokenBalance(tokenOut.address, address)
+  const { balance: balanceIn, refetchBalance: refetchBalanceIn } = useTokenBalance(tokenIn, address)
+  const { balance: balanceOut } = useTokenBalance(tokenOut, address)
+  const { allowance, refetch: refetchAllowance } = useTokenAllowanceV3(tokenIn, address)
 
   // Get best quote across all fee tiers
   const { bestFee, bestQuote, allQuotes, isLoading: quoteLoading } = useMultiFeeQuote(
@@ -34,20 +39,25 @@ export default function UniswapV3SwapPage() {
   )
 
   const amountOut = useMemo(() => {
-    if (!bestQuote || !bestQuote[0]) return ''
+    if (!bestQuote || !bestQuote[0] || !tokenOut) return ''
     return formatUnits(bestQuote[0], tokenOut.decimals)
   }, [bestQuote, tokenOut])
-
-  const { data: allowance, refetch: refetchAllowance } = useTokenAllowance(tokenIn.address, address)
   
   const needsApproval = useMemo(() => {
-    if (allowance == null || !amountIn) return false
+    if (allowance == null || !amountIn || !tokenIn) return false
     const amountInParsed = parseUnits(amountIn, tokenIn.decimals)
     return allowance < amountInParsed
   }, [allowance, amountIn, tokenIn])
 
   const { approve, isPending: isApproving, isConfirming: isApprovingConfirm, isSuccess: approveSuccess } = useApproveToken()
   const { swap, isPending: isSwapping, isConfirming: isSwappingConfirm, isSuccess: swapSuccess, hash } = useSwapTokens()
+
+  useEffect(() => {
+    if (popularTokens.length > 0 && !tokenIn) {
+      setTokenIn(popularTokens[0])
+      setTokenOut(popularTokens.find(t => t.symbol.toUpperCase() === 'USDC') || popularTokens[1])
+    }
+  }, [popularTokens, tokenIn])
 
   useEffect(() => {
     if (approveSuccess) {
@@ -63,13 +73,13 @@ export default function UniswapV3SwapPage() {
   }, [swapSuccess, refetchBalanceIn])
 
   const handleApprove = () => {
-    if (!amountIn || !address) return
+    if (!amountIn || !address || !tokenIn) return
     const maxAmount = parseUnits('1000000', tokenIn.decimals)
-    approve(tokenIn.address, maxAmount)
+    approve(tokenIn, maxAmount)
   }
 
   const handleSwap = () => {
-    if (!address || !amountIn || !amountOut || !bestFee) return
+    if (!address || !amountIn || !amountOut || !bestFee || !tokenIn || !tokenOut) return
     swap(amountIn, amountOut, tokenIn, tokenOut, parseFloat(slippage), bestFee, address)
   }
 
@@ -79,9 +89,9 @@ export default function UniswapV3SwapPage() {
     setAmountIn('')
   }
 
-  const formatBalance = (balance: bigint | undefined, decimals: number) => {
+  const formatBalance = (balance: string | null) => {
     if (!balance) return '0.0000'
-    return parseFloat(formatUnits(balance, decimals)).toFixed(4)
+    return Number(balance).toFixed(4)
   }
 
   const pricePerToken = useMemo(() => {
@@ -92,7 +102,6 @@ export default function UniswapV3SwapPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-md mx-auto space-y-4">
-        {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold">Swap V3</h1>
           <ChainSwitcher />
@@ -137,16 +146,15 @@ export default function UniswapV3SwapPage() {
           </CardHeader>
 
           <CardContent className="space-y-2">
-            {/* Token Input */}
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">You pay</span>
                 {isConnected && balanceIn !== undefined && (
                   <button
                     className="text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setAmountIn(formatUnits(balanceIn, tokenIn.decimals))}
+                    onClick={() => setAmountIn(balanceIn ?? '')}
                   >
-                    Balance: {formatBalance(balanceIn, tokenIn.decimals)}
+                    Balance: {formatBalance(balanceIn)}
                   </button>
                 )}
               </div>
@@ -158,11 +166,16 @@ export default function UniswapV3SwapPage() {
                   onChange={(e) => setAmountIn(e.target.value)}
                   className="text-2xl h-16 border-2"
                 />
-                <TokenDisplay token={tokenIn} />
+                <TokenSelector
+                  token={tokenIn}
+                  onSelect={setTokenIn}
+                  tokens={tokens}
+                  popularTokens={popularTokens}
+                  isLoading={isLoading}
+                />
               </div>
             </div>
 
-            {/* Flip Button */}
             <div className="flex justify-center -my-2 relative z-10">
               <Button
                 variant="outline"
@@ -174,13 +187,12 @@ export default function UniswapV3SwapPage() {
               </Button>
             </div>
 
-            {/* Token Output */}
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">You receive</span>
                 {isConnected && balanceOut !== undefined && (
                   <span className="text-muted-foreground">
-                    Balance: {formatBalance(balanceOut, tokenOut.decimals)}
+                    Balance: {formatBalance(balanceOut)}
                   </span>
                 )}
               </div>
@@ -192,7 +204,13 @@ export default function UniswapV3SwapPage() {
                   readOnly
                   className="text-2xl h-16 border-2 bg-muted"
                 />
-                <TokenDisplay token={tokenOut} />
+                <TokenSelector
+                  token={tokenOut}
+                  onSelect={setTokenOut}
+                  tokens={tokens}
+                  popularTokens={popularTokens}
+                  isLoading={isLoading}
+                />
               </div>
             </div>
 
@@ -207,7 +225,7 @@ export default function UniswapV3SwapPage() {
             )}
 
             {/* All Available Quotes */}
-            {amountIn && allQuotes.length > 0 && (
+            {amountIn && allQuotes.length > 0 && tokenOut && (
               <details className="text-xs">
                 <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
                   View all fee tiers
@@ -230,7 +248,7 @@ export default function UniswapV3SwapPage() {
             )}
 
             {/* Swap Details */}
-            {amountIn && amountOut && !quoteLoading && (
+            {amountIn && amountOut && !quoteLoading && tokenOut && tokenIn && (
               <div className="pt-4 space-y-2 border-t">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Rate</span>
@@ -259,12 +277,11 @@ export default function UniswapV3SwapPage() {
               </div>
             )}
 
-            {/* Action Buttons */}
             {!isConnected ? (
               <Button size="lg" className="w-full mt-4" disabled>
                 Connect Wallet
               </Button>
-            ) : needsApproval ? (
+            ) : (needsApproval && tokenIn) ? (
               <Button
                 size="lg"
                 className="w-full mt-4"
@@ -298,7 +315,6 @@ export default function UniswapV3SwapPage() {
               </Button>
             )}
 
-            {/* Success Message */}
             {swapSuccess && hash && (
               <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg mt-4">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
@@ -318,21 +334,6 @@ export default function UniswapV3SwapPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
-  )
-}
-
-function TokenDisplay({ token }: { token: Token }) {
-  return (
-    <div className="flex items-center gap-2 px-4 py-2 border-2 rounded-lg bg-muted min-w-[120px]">
-      <Image
-        src={token.logo}
-        alt={token.symbol}
-        width={24}
-        height={24}
-        className="rounded-full"
-      />
-      <span className="font-semibold">{token.symbol}</span>
     </div>
   )
 }

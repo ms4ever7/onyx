@@ -1,47 +1,64 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { ArrowDown, Settings, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { parseUnits } from 'viem'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ArrowDown, Settings, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
-import { useWalletInfo } from '@/hooks/useWalletInfo'
-import { useSwapQuote, useTokenBalance, useTokenAllowance, useApproveToken, useSwapTokens } from '@/hooks/useUniswapV2'
-import { COMMON_TOKENS, type Token } from '@/lib/contracts/uniswap-v2'
-import { formatUnits, parseUnits } from 'viem'
-import Image from 'next/image'
+import { useWalletInfo } from '@/hooks/uniswap/wagmi/useWalletInfo'
+import { useSwapTokenV2 } from '@/hooks/uniswap/v2/useSwapTokenV2'
+import { useTokenList } from '@/hooks/useTokenList'
+import { useSwapQouteV2 } from '@/hooks/uniswap/v2/useSwapQouteV2'
+import { useTokenAllowanceV2 } from '@/hooks/uniswap/v2/useTokenAllowanceV2'
+import { useTokenBalance } from '@/hooks/uniswap/useTokenBalance'
+import { Token } from '@/lib/utils/token'
+import TokenSelector from '../token-selector'
+import { useApproveTokenV2 } from '@/hooks/uniswap/v2/useApproveTokenV2'
 
 export default function UniswapV2SwapPage() {
   const { address, isConnected } = useWalletInfo()
+  const { tokens, popularTokens, isLoading } = useTokenList()
   
-  const [tokenIn, setTokenIn] = useState<Token>(COMMON_TOKENS.UNI)
-  const [tokenOut, setTokenOut] = useState<Token>(COMMON_TOKENS.USDC)
-  const [amountIn, setAmountIn] = useState('')
+  const [tokenIn, setTokenIn] = useState<Token | null>(null)
+  const [tokenOut, setTokenOut] = useState<Token | null>(null)
+  const [amountIn, setAmountIn] = useState<string>('')
   const [slippage, setSlippage] = useState(0.5)
   const [showSettings, setShowSettings] = useState(false)
 
-  const { data: balanceIn, refetch: refetchBalanceIn } = useTokenBalance(tokenIn.address, address)
-  const { data: balanceOut } = useTokenBalance(tokenOut.address, address)
+  const { balance: balanceIn, refetchBalance: refetchBalanceIn } = useTokenBalance(tokenIn, address)
+  const { balance: balanceOut } = useTokenBalance(tokenOut, address)
+  const { data: quote, loading: quoteLoading } = useSwapQouteV2(amountIn, tokenIn, tokenOut)
+  const { allowance, refetch: refetchAllowance } = useTokenAllowanceV2(tokenIn, address)
 
-  const { data: quote, isLoading: quoteLoading } = useSwapQuote(amountIn, tokenIn, tokenOut)
+  const {
+    approve: approveOldWay,
+    isPending: isApproving,
+    isConfirming: isApprovingConfirm,
+    isConfirmed: approveSuccess
+   } = useApproveTokenV2()
+   const { swap, isPending: isSwapping, isConfirming: isSwappingConfirm, isSuccess: swapSuccess, hash } = useSwapTokenV2()
 
   const amountOut = useMemo(() => {
-    if (!quote || !quote[1]) return ''
-    return formatUnits(quote[1], tokenOut.decimals)
+    if (!quote || !quote[1]) return '';
+
+    return quote;
   }, [quote, tokenOut])
 
-  const { data: allowance, refetch: refetchAllowance } = useTokenAllowance(tokenIn.address, address)
   
   const needsApproval = useMemo(() => {
-    if (allowance == null || !amountIn) return false;
+    if (allowance == null || !amountIn || !tokenIn) return false;
 
     const amountInParsed = parseUnits(amountIn, tokenIn.decimals)
     return allowance < amountInParsed
   }, [allowance, amountIn, tokenIn])
 
-  const { approve, isPending: isApproving, isConfirming: isApprovingConfirm, isSuccess: approveSuccess } = useApproveToken()
-
-  const { swap, isPending: isSwapping, isConfirming: isSwappingConfirm, isSuccess: swapSuccess, hash } = useSwapTokens()
+  useEffect(() => {
+    if (popularTokens.length > 0 && !tokenIn) {
+      setTokenIn(popularTokens[0])
+      setTokenOut(popularTokens.find(t => t.symbol.toUpperCase() === 'USDC') || popularTokens[1])
+    }
+  }, [popularTokens, tokenIn])
 
   useEffect(() => {
     if (approveSuccess) {
@@ -57,15 +74,14 @@ export default function UniswapV2SwapPage() {
   }, [swapSuccess, refetchBalanceIn])
 
   const handleApprove = () => {
-    if (!amountIn || !address) return
+    if (!amountIn || !address || !tokenIn) return
     const amountInParsed = parseUnits(amountIn, tokenIn.decimals)
-    // Approve max amount for convenience
-    const maxAmount = parseUnits('1000000', tokenIn.decimals)
-    approve(tokenIn.address, maxAmount)
+
+    approveOldWay(tokenIn, amountInParsed)
   }
 
   const handleSwap = () => {
-    if (!address || !amountIn || !amountOut) return
+    if (!address || !amountIn || !amountOut || !tokenIn || !tokenOut) return
     swap(amountIn, amountOut, tokenIn, tokenOut, address, slippage)
   }
 
@@ -75,13 +91,12 @@ export default function UniswapV2SwapPage() {
     setAmountIn('')
   }
 
-  // Format balance
-  const formatBalance = (balance: bigint | undefined, decimals: number) => {
-    if (!balance) return '0.0000'
-    return parseFloat(formatUnits(balance, decimals)).toFixed(4)
+  const formatBalance = (balance: string | null) => {
+    if (!balance) return '0.0000';
+
+    return Number(balance).toFixed(4)
   }
 
-  // Price per token
   const pricePerToken = useMemo(() => {
     if (!amountIn || !amountOut || parseFloat(amountIn) === 0) return '0'
     return (parseFloat(amountOut) / parseFloat(amountIn)).toFixed(6)
@@ -90,7 +105,6 @@ export default function UniswapV2SwapPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-md mx-auto space-y-4">
-        {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold">Swap</h1>
           <p className="text-muted-foreground">
@@ -140,9 +154,9 @@ export default function UniswapV2SwapPage() {
                 {isConnected && balanceIn !== undefined && (
                   <button
                     className="text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setAmountIn(formatUnits(balanceIn, tokenIn.decimals))}
+                    onClick={() => setAmountIn(balanceIn ?? '')}
                   >
-                    Balance: {formatBalance(balanceIn, tokenIn.decimals)}
+                    Balance: {formatBalance(balanceIn)}
                   </button>
                 )}
               </div>
@@ -154,7 +168,13 @@ export default function UniswapV2SwapPage() {
                   onChange={(e) => setAmountIn(e.target.value)}
                   className="text-2xl h-16 border-2"
                 />
-                <TokenDisplay token={tokenIn} />
+                <TokenSelector
+                  token={tokenIn}
+                  onSelect={setTokenIn}
+                  tokens={tokens}
+                  popularTokens={popularTokens}
+                  isLoading={isLoading}
+                />
               </div>
             </div>
 
@@ -174,7 +194,7 @@ export default function UniswapV2SwapPage() {
                 <span className="text-muted-foreground">You receive</span>
                 {isConnected && balanceOut !== undefined && (
                   <span className="text-muted-foreground">
-                    Balance: {formatBalance(balanceOut, tokenOut.decimals)}
+                    Balance: {formatBalance(balanceOut)}
                   </span>
                 )}
               </div>
@@ -186,11 +206,17 @@ export default function UniswapV2SwapPage() {
                   readOnly
                   className="text-2xl h-16 border-2 bg-muted"
                 />
-                <TokenDisplay token={tokenOut} />
+                 <TokenSelector
+                    token={tokenOut}
+                    onSelect={setTokenOut}
+                    tokens={tokens}
+                    popularTokens={popularTokens}
+                    isLoading={isLoading}
+                  />
               </div>
             </div>
 
-            {amountIn && amountOut && !quoteLoading && (
+            {amountIn && amountOut && !quoteLoading && tokenIn && tokenOut && (
               <div className="pt-4 space-y-2 border-t">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Rate</span>
@@ -215,7 +241,7 @@ export default function UniswapV2SwapPage() {
               <Button size="lg" className="w-full mt-4" disabled>
                 Connect Wallet
               </Button>
-            ) : needsApproval ? (
+            ) : (needsApproval && tokenIn) ? (
               <Button
                 size="lg"
                 className="w-full mt-4"
@@ -277,22 +303,6 @@ export default function UniswapV2SwapPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
-  )
-}
-
-// Simple token display component
-function TokenDisplay({ token }: { token: Token }) {
-  return (
-    <div className="flex items-center gap-2 px-4 py-2 border-2 rounded-lg bg-muted min-w-[120px]">
-      <Image
-        src={token.logo}
-        alt={token.symbol}
-        width={24}
-        height={24}
-        className="rounded-full"
-      />
-      <span className="font-semibold">{token.symbol}</span>
     </div>
   )
 }

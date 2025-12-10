@@ -12,7 +12,7 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu"
-import { cn } from "@/lib/utils"
+import { cn } from "@/components/utils"
 import { ConnectButton } from "@/components/web3/connect-button"
 
 const components: { title: string; href: string; description: string }[] = [

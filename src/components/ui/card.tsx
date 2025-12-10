@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/components/utils"
 
 function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -64,6 +64,7 @@ function CardAction({ className, ...props }: React.ComponentProps<"div">) {
 function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
+      suppressHydrationWarning={true}
       data-slot="card-content"
       className={cn("px-6", className)}
       {...props}

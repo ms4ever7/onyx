@@ -7,10 +7,8 @@ import { ArrowRight } from "lucide-react";
 export default function Home() {
   return (
     <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-linear-to-br from-gray-950 via-purple-950 to-indigo-900 text-white">
-      {/* Background Glow */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(168,85,247,0.3),transparent_40%),radial-gradient(circle_at_bottom_left,rgba(79,70,229,0.3),transparent_40%)]" />
 
-      {/* Floating Gradient Orbs */}
       <motion.div
         className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-purple-700 blur-[140px] opacity-30"
         animate={{ y: [0, 30, 0], scale: [1, 1.05, 1] }}
@@ -22,7 +20,6 @@ export default function Home() {
         transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      {/* Hero Content */}
       <main className="z-10 flex flex-col items-center text-center space-y-8 px-6 md:px-12">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -40,7 +37,6 @@ export default function Home() {
           </p>
         </motion.div>
 
-        {/* CTA Buttons */}
         <motion.div
           className="flex flex-wrap justify-center gap-4"
           initial={{ opacity: 0 }}
@@ -64,7 +60,6 @@ export default function Home() {
         </motion.div>
       </main>
 
-      {/* Subtle Footer */}
       <footer className="absolute bottom-4 text-sm text-gray-500">
         © {new Date().getFullYear()} Onyx — A Web3 Portfolio Experience
       </footer>

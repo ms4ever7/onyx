@@ -66,9 +66,7 @@ export function ChainSwitcher() {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" className="w-56">
-        {SUPPORTED_CHAINS.map((supportedChain) => {
-          console.log('supported chain', supportedChain);
-          const chainInfo = CHAIN_INFO[supportedChain.id as keyof typeof CHAIN_INFO]
+        {chains.map((supportedChain) => {
           const isActive = chain?.id === supportedChain.id
           const isSwitching = switchingTo === supportedChain.id
 
@@ -81,8 +79,8 @@ export function ChainSwitcher() {
             >
               <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-2">
-                  <span>{chainInfo.icon}</span>
-                  <span>{chainInfo.name}</span>
+                  {/* NOTE: Maybe try to add logo here later */}
+                  <span>{supportedChain.name}</span>
                 </div>
                 {isSwitching && (
                   <Loader2 className="h-4 w-4 animate-spin" />
