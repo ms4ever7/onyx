@@ -1,5 +1,5 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi'
-import { parseUnits } from 'viem'
+import { Hash, parseUnits } from 'viem'
 import { UNISWAP_V2_ADDRESSES, UNISWAP_V2_ROUTER_ABI, ERC20_ABI, COMMON_TOKENS, getUniswapV2Addresses } from '@/lib/contracts/uniswap-v2'
 import { Token, toRouteAddress } from '@/lib/utils/token'
  
@@ -42,7 +42,7 @@ export function useSwapQuote(
 /**
  * Get token balance
  */
-export function useTokenBalance(tokenAddress: `0x${string}` | undefined, userAddress: `0x${string}` | undefined) {
+export function useTokenBalance(tokenAddress: Hash | undefined, userAddress: Hash | undefined) {
   return useReadContract({
     address: tokenAddress,
     abi: ERC20_ABI,
@@ -58,8 +58,8 @@ export function useTokenBalance(tokenAddress: `0x${string}` | undefined, userAdd
  * Get token allowance (how much user has approved for router)
  */
 export function useTokenAllowance(
-  tokenAddress: `0x${string}` | undefined,
-  ownerAddress: `0x${string}` | undefined
+  tokenAddress: Hash | undefined,
+  ownerAddress: Hash | undefined
 ) {
   const chainId = useChainId();
   const addresses = getUniswapV2Addresses(chainId)
@@ -123,7 +123,7 @@ export function useSwapTokens() {
     amountOutMin: string,
     tokenIn: Token,
     tokenOut: Token,
-    userAddress: `0x${string}`,
+    userAddress: Hash,
     slippageTolerance: number = 0.5
   ) => {
     const path =

@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type { Token } from '@/lib/utils/token'
+import { Hash } from 'viem'
 
 interface TokenListToken {
   chainId: number
@@ -42,7 +43,7 @@ export async function fetchTokenList(chainId: number = 1): Promise<Token[]> {
         symbol: t.symbol,
         name: t.name,
         decimals: t.decimals,
-        address: t.address as `0x${string}`,
+        address: t.address as Hash,
         isNative: false,
         logo: t.logoURI,
       }))

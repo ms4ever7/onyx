@@ -1,7 +1,7 @@
-import { parseAbi } from 'viem'
+import { Hash, parseAbi } from 'viem'
 
 // Uniswap V2 Contract Addresses (Ethereum Mainnet)
-export const UNISWAP_V2_ADDRESSES: Record<number, { FACTORY: `0x${string}`, ROUTER: `0x${string}` }> = {
+export const UNISWAP_V2_ADDRESSES: Record<number, { FACTORY: Hash, ROUTER: Hash }> = {
   1: { // Mainnet
     FACTORY: '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
     ROUTER: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
@@ -36,7 +36,7 @@ export const UNISWAP_V2_ADDRESSES: Record<number, { FACTORY: `0x${string}`, ROUT
   },
 }
 
-export const getUniswapV2Addresses = (chainId: number): { FACTORY: `0x${string}`, ROUTER: `0x${string}` } => {
+export const getUniswapV2Addresses = (chainId: number): { FACTORY: Hash, ROUTER: Hash } => {
   const addresses = UNISWAP_V2_ADDRESSES[chainId]
   if (!addresses) {
     throw new Error(`Uniswap V2 not supported on chain ${chainId}`)
@@ -101,7 +101,7 @@ export const COMMON_TOKENS = {
     logo: "https://assets.coingecko.com/coins/images/279/small/ethereum.png",
   },
   WETH: {
-    address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' as `0x${string}`,
+    address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' as Hash,
     symbol: 'WETH',
     name: 'Wrapped Ether',
     decimals: 18,
@@ -109,7 +109,7 @@ export const COMMON_TOKENS = {
     logo: 'https://assets.coingecko.com/coins/images/2518/small/weth.png',
   },
   USDC: {
-    address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as `0x${string}`,
+    address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as Hash,
     symbol: 'USDC',
     name: 'USD Coin',
     decimals: 6,
@@ -117,7 +117,7 @@ export const COMMON_TOKENS = {
     logo: 'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png',
   },
   USDT: {
-    address: '0xdAC17F958D2ee523a2206206994597C13D831ec7' as `0x${string}`,
+    address: '0xdAC17F958D2ee523a2206206994597C13D831ec7' as Hash,
     symbol: 'USDT',
     name: 'Tether USD',
     decimals: 6,
@@ -125,7 +125,7 @@ export const COMMON_TOKENS = {
     logo: 'https://assets.coingecko.com/coins/images/325/small/Tether.png',
   },
   DAI: {
-    address: '0x6B175474E89094C44Da98b954EedeAC495271d0F' as `0x${string}`,
+    address: '0x6B175474E89094C44Da98b954EedeAC495271d0F' as Hash,
     symbol: 'DAI',
     name: 'Dai Stablecoin',
     decimals: 18,
@@ -133,7 +133,7 @@ export const COMMON_TOKENS = {
     logo: 'https://assets.coingecko.com/coins/images/9956/small/4943.png',
   },
   UNI: {
-    address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984' as `0x${string}`,
+    address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984' as Hash,
     symbol: 'UNI',
     name: 'Uniswap',
     decimals: 18,
@@ -141,7 +141,7 @@ export const COMMON_TOKENS = {
     logo: 'https://assets.coingecko.com/coins/images/12504/small/uni.jpg',
   },
   LINK: {
-    address: '0x514910771AF9Ca656af840dff83E8264EcF986CA' as `0x${string}`,
+    address: '0x514910771AF9Ca656af840dff83E8264EcF986CA' as Hash,
     symbol: 'LINK',
     name: 'Chainlink',
     decimals: 18,
@@ -149,7 +149,7 @@ export const COMMON_TOKENS = {
     logo: 'https://assets.coingecko.com/coins/images/877/small/chainlink-new-logo.png',
   },
   WBTC: {
-    address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599' as `0x${string}`,
+    address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599' as Hash,
     symbol: 'WBTC',
     name: 'Wrapped Bitcoin',
     decimals: 8,

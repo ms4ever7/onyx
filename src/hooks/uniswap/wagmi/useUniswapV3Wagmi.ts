@@ -1,5 +1,5 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi'
-import { parseUnits } from 'viem'
+import { Hash, parseUnits } from 'viem'
 import { ERC20_ABI, UNISWAP_V3_ROUTER_ABI, UNISWAP_V3_QUOTER_V2_ABI, getUniswapV3Addresses } from '@/lib/contracts/uniswap-v3'
 import { useMemo } from 'react'
 import { Token, toRouteAddress } from '@/lib/utils/token'
@@ -62,12 +62,11 @@ export function useSwapQuote(
   const amountInParsed =
     amountIn && tokenIn ? parseUnits(amountIn, tokenIn.decimals) : 0n
   const chainId = useChainId();
-  const addresses = getUniswapV3Addresses(chainId)
-
-    
+  const addresses = getUniswapV3Addresses(chainId);
+  const quoterAddress = addresses?.QUOTER_V2 || undefined;
 
   return useReadContract({
-    address: addresses.QUOTER_V2!,
+    address: quoterAddress,
     abi: UNISWAP_V3_QUOTER_V2_ABI,
     functionName: 'quoteExactInputSingle',
     args: tokenIn && tokenOut ? [{
@@ -91,7 +90,7 @@ export function useSwapQuote(
 /**
  * Get token balance
  */
-export function useTokenBalance(token: Token | null, userAddress: `0x${string}` | undefined) {
+export function useTokenBalance(token: Token | null, userAddress: Hash | undefined) {
   return useReadContract({
     address: toRouteAddress(token!),
     abi: ERC20_ABI,
@@ -108,7 +107,7 @@ export function useTokenBalance(token: Token | null, userAddress: `0x${string}` 
  */
 export function useTokenAllowance(
   tokenAddress: Token | null,
-  ownerAddress: `0x${string}` | undefined
+  ownerAddress: Hash | undefined
 ) {
   const chainId = useChainId();
   const addresses = getUniswapV3Addresses(chainId)
@@ -176,7 +175,7 @@ export function useSwapTokens() {
     tokenOut: Token,
     slippageTolerance: number,
     fee: number, // Fee tier from quote
-    userAddress: `0x${string}`
+    userAddress: Hash
   ) => {
 
     const amountInParsed = parseUnits(amountIn, tokenIn.decimals)

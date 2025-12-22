@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { getUniswapV2Addresses } from '@/lib/contracts/uniswap-v2';
 import { fetchTokenAllowance, Token } from '@/lib/utils/token';
 import { useChainId } from 'wagmi';
+import { Hash } from 'viem';
 
 export function useTokenAllowanceV2(
   token: Token | null,
-  owner: `0x${string}` | undefined
+  owner: Hash | undefined
 ) {
   const chainId = useChainId();
   const [allowance, setAllowance] = useState<bigint | null>(null)

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchTokenBalance, Token } from '@/lib/utils/token';
 import { useChainId } from 'wagmi';
+import { Hash } from 'viem';
 
 export function useTokenBalance(
   token: Token | null,
-  userAddress?: `0x${string}`,  
+  userAddress?: Hash,  
 ) {
   const chainId = useChainId();
   const [balance, setBalance] = useState<string | null>(null)
@@ -17,11 +18,18 @@ export function useTokenBalance(
       return
     }
 
+    if (chainId === 11155111 && token.address === '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48') {
+      console.warn("Preventing balance fetch for Mainnet USDC on Sepolia");
+      setBalance("0");
+      return;
+    }
+
     setIsLoading(true)
     setError(null)
 
     try {
       const balanceStr = await fetchTokenBalance(token, userAddress, chainId)
+
       setBalance(balanceStr)
     } catch (err) {
       console.error('Error fetching token balance:', err)

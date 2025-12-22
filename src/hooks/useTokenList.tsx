@@ -12,25 +12,29 @@ export function useTokenList() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    let isMounted = true;
+
     async function loadTokens() {
       setIsLoading(true)
+      setTokens([]) 
+      setPopularTokens([])
+
       try {
         const tokenList = await fetchTokenList(chainId)
-        setTokens(tokenList)
-        setPopularTokens(getPopularTokens(tokenList))
+        if (isMounted) {
+          setTokens(tokenList)
+          setPopularTokens(getPopularTokens(tokenList))
+        }
       } catch (error) {
         console.error('Error loading tokens:', error)
       } finally {
-        setIsLoading(false)
+        if (isMounted) setIsLoading(false)
       }
     }
 
     loadTokens()
+    return () => { isMounted = false };
   }, [chainId])
 
-  return { 
-    tokens, 
-    popularTokens, 
-    isLoading 
-  }
+  return { tokens, popularTokens, isLoading }
 }

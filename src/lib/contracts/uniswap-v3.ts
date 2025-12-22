@@ -1,12 +1,12 @@
-import { parseAbi } from 'viem'
+import { Hash, parseAbi } from 'viem'
 
 export const UNISWAP_V3_ADDRESSES: Record<
   number,
   {
-    FACTORY: `0x${string}`
-    ROUTER: `0x${string}`
-    QUOTER_V2: `0x${string}` | null
-    POSITION_MANAGER: `0x${string}` | null
+    FACTORY: Hash
+    ROUTER: Hash
+    QUOTER_V2: Hash | null | ''
+    POSITION_MANAGER: Hash | null | ''
   }
 > = {
   1: { // Ethereum Mainnet
@@ -50,7 +50,12 @@ export const UNISWAP_V3_ADDRESSES: Record<
     QUOTER_V2: null, // Not deployed
     POSITION_MANAGER: null, // Not deployed
   },
-
+  11155111: { // Ethereum Sepolia
+    FACTORY: '0x0227628f3F023bb0B980b67D528571c95c6DaC1c',
+    ROUTER: '0x3bFA4769FB09eefC5a80d6E87c3B91650a764654', // SwapRouter02 
+    QUOTER_V2: '0xEdF1C9312E3574488457685125Ad6EE3f1178201',
+    POSITION_MANAGER: '0x1231DEB6f5749CB6cE240C665174333dc3619BC1',
+  },
   43114: { // Avalanche C-Chain
     FACTORY: '0x740b1c1de25031C31FF4fC9A62f554A55cdC1baD',
     ROUTER: '0x4Dae2f939ACf50408e13d58534Ff8c2776d45265',
@@ -59,8 +64,18 @@ export const UNISWAP_V3_ADDRESSES: Record<
   },
 }
 
+export const BLOCK_EXPLORERS: Record<number, string> = {
+  1: 'https://etherscan.io',
+  11155111: 'https://sepolia.etherscan.io',
+  8453: 'https://basescan.org',
+  84532: 'https://sepolia.basescan.org',
+  137: 'https://polygonscan.com',
+  42161: 'https://arbiscan.io',
+  10: 'https://optimistic.etherscan.io',
+  43114: 'https://snowtrace.io',
+};
 
-export const getUniswapV3Addresses = (chainId: number): { FACTORY: `0x${string}`, ROUTER: `0x${string}`, QUOTER_V2: `0x${string}` | null  } => {
+export const getUniswapV3Addresses = (chainId: number): { FACTORY: Hash, ROUTER: Hash, QUOTER_V2: Hash | null | '' } => {
   const addresses = UNISWAP_V3_ADDRESSES[chainId]
   if (!addresses) {
     throw new Error(`Uniswap V3 not supported on chain ${chainId}`)
@@ -112,7 +127,6 @@ export const UNISWAP_V3_POOL_ABI = parseAbi([
   'function swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes data) external returns (int256 amount0, int256 amount1)',
 ])
 
-
 export const ERC20_ABI = parseAbi([
   'function balanceOf(address owner) view returns (uint256)',
   'function decimals() view returns (uint8)',
@@ -121,7 +135,7 @@ export const ERC20_ABI = parseAbi([
   'function allowance(address owner, address spender) view returns (uint256)',
 ])
 
-export function encodePath(tokens: `0x${string}`[], fees: number[]): `0x${string}` {
+export function encodePath(tokens: Hash[], fees: number[]): Hash {
   if (tokens.length !== fees.length + 1) {
     throw new Error('Invalid path: tokens.length must equal fees.length + 1')
   }
@@ -134,5 +148,5 @@ export function encodePath(tokens: `0x${string}`[], fees: number[]): `0x${string
   }
   encoded += tokens[tokens.length - 1].slice(2)
   
-  return encoded as `0x${string}`
+  return encoded as Hash
 }

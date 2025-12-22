@@ -6,17 +6,21 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ArrowDown, Settings, Loader2, CheckCircle2, Info } from 'lucide-react'
 import { useWalletInfo } from '@/hooks/uniswap/wagmi/useWalletInfo'
-import { useMultiFeeQuote, useTokenAllowance, useApproveToken, useSwapTokens } from '@/hooks/uniswap/wagmi/useUniswapV3Wagmi'
+import { useApproveToken } from '@/hooks/uniswap/wagmi/useUniswapV3Wagmi'
 import { useTokenBalance } from '@/hooks/uniswap/useTokenBalance'
-import { formatUnits, parseUnits } from 'viem'
-import { useAccount } from 'wagmi'
+import { parseUnits } from 'viem'
+import { useAccount, useChainId } from 'wagmi'
 import { ChainSwitcher } from '@/components/web3/chain-switcher'
 import { Token } from '@/lib/utils/token'
 import { useTokenList } from '@/hooks/useTokenList'
 import TokenSelector from '../token-selector'
 import { useTokenAllowanceV3 } from '@/hooks/uniswap/v3/useTokenAllowanceV3'
+import { useSwapQuoteV3 } from '@/hooks/uniswap/v3/useSwapQuoteV3'
+import { useSwapTokenV3 } from '@/hooks/uniswap/v3/uswSwapTokenV3'
+import { BLOCK_EXPLORERS } from '@/lib/contracts/uniswap-v3'
 
 export default function UniswapV3SwapPage() {
+  const chainId = useChainId();
   const { address, isConnected } = useWalletInfo()
   const { tokens, popularTokens, isLoading } = useTokenList()
   
@@ -28,21 +32,20 @@ export default function UniswapV3SwapPage() {
   const { chain } = useAccount()
 
   const { balance: balanceIn, refetchBalance: refetchBalanceIn } = useTokenBalance(tokenIn, address)
-  const { balance: balanceOut } = useTokenBalance(tokenOut, address)
+  const { balance: balanceOut, refetchBalance: refetchBalanceOut } = useTokenBalance(tokenOut, address)
   const { allowance, refetch: refetchAllowance } = useTokenAllowanceV3(tokenIn, address)
+  const quote500 = useSwapQuoteV3(amountIn, tokenIn, tokenOut);
+  const explorerBase = BLOCK_EXPLORERS[chainId] || 'https://etherscan.io';
 
-  // Get best quote across all fee tiers
-  const { bestFee, bestQuote, allQuotes, isLoading: quoteLoading } = useMultiFeeQuote(
-    amountIn, 
-    tokenIn, 
-    tokenOut
-  )
+  const bestQuote = quote500.data;
+  const quoteLoading = quote500.loading;
+  const bestFee = 500; // Hardcoded for testing your new function
 
   const amountOut = useMemo(() => {
-    if (!bestQuote || !bestQuote[0] || !tokenOut) return ''
-    return formatUnits(bestQuote[0], tokenOut.decimals)
-  }, [bestQuote, tokenOut])
-  
+    if (!quote500.data || !tokenOut) return ''
+    return quote500.data 
+  }, [quote500.data, tokenOut])
+
   const needsApproval = useMemo(() => {
     if (allowance == null || !amountIn || !tokenIn) return false
     const amountInParsed = parseUnits(amountIn, tokenIn.decimals)
@@ -50,7 +53,15 @@ export default function UniswapV3SwapPage() {
   }, [allowance, amountIn, tokenIn])
 
   const { approve, isPending: isApproving, isConfirming: isApprovingConfirm, isSuccess: approveSuccess } = useApproveToken()
-  const { swap, isPending: isSwapping, isConfirming: isSwappingConfirm, isSuccess: swapSuccess, hash } = useSwapTokens()
+  const { swap, isPending: isSwapping, isConfirming: isSwappingConfirm, isSuccess: swapSuccess, hash } = useSwapTokenV3()
+
+  useEffect(() => {
+    if (popularTokens.length > 0) {
+      setTokenIn(popularTokens[0]);
+      const defaultOut = popularTokens.find(t => t.symbol === 'USDC') || popularTokens[1];
+      setTokenOut(defaultOut);
+    }
+  }, [chainId, popularTokens]);
 
   useEffect(() => {
     if (popularTokens.length > 0 && !tokenIn) {
@@ -67,10 +78,14 @@ export default function UniswapV3SwapPage() {
 
   useEffect(() => {
     if (swapSuccess) {
-      refetchBalanceIn()
-      setAmountIn('')
+      setTimeout(() => {
+        refetchBalanceIn();
+        refetchBalanceOut();
+      }, 1500);
+      
+      setAmountIn('');
     }
-  }, [swapSuccess, refetchBalanceIn])
+  }, [swapSuccess, refetchBalanceIn, refetchBalanceOut]);
 
   const handleApprove = () => {
     if (!amountIn || !address || !tokenIn) return
@@ -80,7 +95,7 @@ export default function UniswapV3SwapPage() {
 
   const handleSwap = () => {
     if (!address || !amountIn || !amountOut || !bestFee || !tokenIn || !tokenOut) return
-    swap(amountIn, amountOut, tokenIn, tokenOut, parseFloat(slippage), bestFee, address)
+    swap(amountIn, amountOut, tokenIn, tokenOut, address, parseFloat(slippage), bestFee)
   }
 
   const handleFlipTokens = () => {
@@ -225,13 +240,13 @@ export default function UniswapV3SwapPage() {
             )}
 
             {/* All Available Quotes */}
-            {amountIn && allQuotes.length > 0 && tokenOut && (
+            {/* {amountIn && allQuotes.length > 0 && tokenOut && (
               <details className="text-xs">
                 <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
                   View all fee tiers
                 </summary>
                 <div className="mt-2 space-y-1 pl-4">
-                  {allQuotes.map((q) => (
+                  {allQuotes.map((q: { fee: Key | null | undefined; data: bigint[] }) => (
                     <div key={q.fee} className="flex justify-between">
                       <span className={q.data ? 'text-foreground' : 'text-muted-foreground line-through'}>
                         {(q.fee / 10000).toFixed(2)}% fee:
@@ -245,7 +260,7 @@ export default function UniswapV3SwapPage() {
                   ))}
                 </div>
               </details>
-            )}
+            )} */}
 
             {/* Swap Details */}
             {amountIn && amountOut && !quoteLoading && tokenOut && tokenIn && (
@@ -321,7 +336,7 @@ export default function UniswapV3SwapPage() {
                 <div className="flex-1">
                   <p className="text-sm font-medium text-green-500">Swap successful!</p>
                   <a
-                    href={`https://etherscan.io/tx/${hash}`}
+                    href={`${explorerBase}/tx/${hash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-green-500 hover:underline"

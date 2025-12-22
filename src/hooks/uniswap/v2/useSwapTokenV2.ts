@@ -17,7 +17,7 @@ export function useSwapTokenV2() {
     amountOutMin: string,
     tokenIn: Token,
     tokenOut: Token,
-    userAddress: `0x${string}`,
+    userAddress: Hash,
     slippageTolerance: number = 0.5
   ) => {
     const wallet = await getWalletClient();
@@ -39,7 +39,7 @@ export function useSwapTokenV2() {
     const amountOutWithSlippage = (amountOutMinParsed * slippageMultiplier) / 10000n    
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20)
 
-    let txHash: `0x${string}`;
+    let txHash: Hash;
 
     // Case 1: Swapping native ETH for tokens
     if (isNativeToken(tokenIn) && !isNativeToken(tokenOut)) {

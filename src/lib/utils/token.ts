@@ -1,4 +1,4 @@
-import { formatUnits } from 'viem'
+import { formatUnits, Hash } from 'viem'
 import { ERC20_ABI } from '@/lib/contracts/uniswap-v2'
 import { createPublicClientForChain } from '../viem/publicClient'
 import { useChainId } from 'wagmi'
@@ -7,9 +7,9 @@ export type Token = {
   symbol: string
   name: string
   decimals: number
-  address: `0x${string}` | "NATIVE"
+  address: Hash | "NATIVE"
   isNative: boolean
-  wrappedAddress?: `0x${string}`
+  wrappedAddress?: Hash
   logo?: string,
   current_price?: any
 }
@@ -19,20 +19,20 @@ export type Token = {
  * Native tokens (ETH) -> WETH for DEX routing
  * ERC20 tokens -> their own address
  */
-export const toRouteAddress = (token: Token): `0x${string}` => {
+export const toRouteAddress = (token: Token): Hash => {
   if (token.isNative) {
     if (!token.wrappedAddress) {
       throw new Error(`Native token ${token.symbol} missing wrappedAddress`)
     }
     return token.wrappedAddress
   }
-  return token.address as `0x${string}`
+  return token.address as Hash
 }
 
 /**
  * Get balance address
  */
-export const toBalanceAddress = (token: Token): `0x${string}` | "NATIVE" => {
+export const toBalanceAddress = (token: Token): Hash | "NATIVE" => {
   return token.address
 }
 
@@ -48,7 +48,7 @@ export const isNativeToken = (token: Token): boolean => {
  */
 export async function fetchTokenBalance(
   token: Token,
-  userAddress: `0x${string}`,
+  userAddress: Hash,
   chainId: number,
 ): Promise<string> {
   const publicClient = createPublicClientForChain(chainId);
@@ -90,8 +90,8 @@ export function needsApproval(token: Token): boolean {
  */
 export async function fetchTokenAllowance(
   token: Token,
-  owner: `0x${string}`,
-  spender: `0x${string}`,
+  owner: Hash,
+  spender: Hash,
   chainId: number
 ): Promise<bigint> {
   const publicClient = createPublicClientForChain(chainId);
@@ -102,7 +102,7 @@ export async function fetchTokenAllowance(
 
   // ERC20 allowance
   const allowance = await publicClient.readContract({
-    address: token.address as `0x${string}`,
+    address: token.address as Hash,
     abi: ERC20_ABI,
     functionName: 'allowance',
     args: [owner, spender],

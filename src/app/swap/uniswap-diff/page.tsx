@@ -100,7 +100,6 @@ function PairComparison({
               ({amount} {tokenIn.symbol})
             </span>
           </div>
-          {/* Show comparison result */}
           {v2Output > 0 && v3Output > 0 && (
             v3IsBetter ? (
               <span className="text-xs bg-green-500/10 text-green-500 px-2 py-1 rounded">

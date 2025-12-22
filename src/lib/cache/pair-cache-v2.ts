@@ -1,6 +1,8 @@
+import { Hash } from "viem"
+
 interface PairCache {
-  pairAddress: `0x${string}`
-  token0: `0x${string}`
+  pairAddress: Hash
+  token0: Hash
   decimalsIn: number
   decimalsOut: number
   timestamp: number
