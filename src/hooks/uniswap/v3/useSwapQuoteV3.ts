@@ -91,11 +91,13 @@ export function useSwapQuoteV3(amountIn: string, tokenIn: Token | null, tokenOut
   const debouncedAmount = useDebounce(amountIn, 400);
 
   useEffect(() => {
-    if (!tokenIn || !tokenOut || !debouncedAmount || parseFloat(debouncedAmount) <= 0) return;
     let cancelled = false;
 
-    async function fetchQuote() {
-      setLoading(true);
+    async function updateQoute(isSilent = false) {
+      if (!tokenIn || !tokenOut || !debouncedAmount || parseFloat(debouncedAmount) <= 0) return;
+
+      if (!isSilent) setLoading(true);
+
       const startTime = performance.now();
 
       try {
@@ -235,11 +237,6 @@ export function useSwapQuoteV3(amountIn: string, tokenIn: Token | null, tokenOut
         let activeTick = snapshot.currentTick;
         let iter = 0;
 
-
-        console.log('--- TEST ETH > DAI ---');
-        console.log('Amount In (wei):', amountRem.toString());
-        console.log('Pool Liquidity (L):', currLiq.toString());
-        console.log('SqrtPrice:', currSqrtP.toString());
         while (amountRem.gt(0) && iter < 200) {
           iter++;
           const nextTick = findNextTickLocal(snapshot, activeTick, metadata.tickSpacing, isTokenInToken0);
@@ -275,8 +272,6 @@ export function useSwapQuoteV3(amountIn: string, tokenIn: Token | null, tokenOut
         }
 
         if (!cancelled) {
-          const rawValue = totalOut.div(new Decimal(10).pow(metadata.decimalsOut));
-  console.log("RAW QUOTE:", rawValue.toString())
           setData(totalOut.div(new Decimal(10).pow(metadata.decimalsOut)).toFixed(metadata.decimalsOut));
           console.log(`[Success] Calculation: ${(performance.now() - startTime).toFixed(2)}ms`);
         }
@@ -287,8 +282,16 @@ export function useSwapQuoteV3(amountIn: string, tokenIn: Token | null, tokenOut
       }
     }
 
-    fetchQuote();
-    return () => { cancelled = true; };
+    updateQoute();
+
+    const interval = setInterval(() => {
+      updateQoute(true);
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [debouncedAmount, tokenIn, tokenOut, chainId]);
 
   return { data, loading };
