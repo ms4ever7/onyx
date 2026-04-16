@@ -21,7 +21,7 @@ export default function SearchableNFTGallery() {
       setLoading(true)
       const options = {
         method: 'GET',
-        headers: { accept: 'application/json', 'x-api-key': '9526dbf19d124970abe0cf8686d98057' }
+        headers: { accept: 'application/json', 'x-api-key': process.env.NEXT_PUBLIC_OPENSEA_API_KEY! }
       }
 
       try {

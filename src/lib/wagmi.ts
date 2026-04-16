@@ -2,7 +2,7 @@ import { cookieStorage, createStorage } from 'wagmi'
 import { mainnet, polygon, arbitrum, optimism, base, sepolia } from 'wagmi/chains'
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 
-export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID || '77b207c23c6638bd9b44e433c5609655'
+export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID
 
 if (!projectId) {
   throw new Error('Project ID is not defined')

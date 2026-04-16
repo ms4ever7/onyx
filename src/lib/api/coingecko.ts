@@ -1,7 +1,7 @@
 import axios, { AxiosRequestConfig } from "axios";
 import { CoinGeckoMarketData } from './types';
 
-const API_KEY = "CG-htW8FZA2s6UML5ozgvrHDwgs";
+const API_KEY = process.env.NEXT_PUBLIC_COINGECKO_API_KEY;
 
 // TypeScript types
 export interface PriceChartData {
