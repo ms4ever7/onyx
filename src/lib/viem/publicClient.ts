@@ -15,14 +15,14 @@ function getViemChain(chainId: number): Chain {
 export function createPublicClientForChain(chainId: number) {
   const chain = getViemChain(chainId);
 
-  const transportUrl = chainId === 1 
-    ? "https://virtual.mainnet.eu.rpc.tenderly.co/482a8da5-3276-432f-a5a1-601ce9941d56"
-    : undefined;
+  // const transportUrl = chainId === 1 
+  //   ? "https://virtual.mainnet.eu.rpc.tenderly.co/482a8da5-3276-432f-a5a1-601ce9941d56"
+  //   : undefined;
   
 
   return createPublicClient({
     chain: chain,
-    transport: http(transportUrl),
+    transport: http(),
     batch: {
       multicall: {
         batchSize: 1024,

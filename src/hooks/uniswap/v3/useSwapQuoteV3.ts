@@ -86,16 +86,17 @@ function findNextTickLocal(
 export function useSwapQuoteV3(amountIn: string, tokenIn: Token | null, tokenOut: Token | null) {
   const chainId = useChainId();
   const [data, setData] = useState<string | null>(null);
+  const [activeFee, setActiveFee] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   const debouncedAmount = useDebounce(amountIn, 400);
 
   useEffect(() => {
     let cancelled = false;
+    let bestFee = 500;
 
     async function updateQoute(isSilent = false) {
       if (!tokenIn || !tokenOut || !debouncedAmount || parseFloat(debouncedAmount) <= 0) return;
-
       if (!isSilent) setLoading(true);
 
       const startTime = performance.now();
@@ -105,66 +106,95 @@ export function useSwapQuoteV3(amountIn: string, tokenIn: Token | null, tokenOut
         const routeTokenIn = toRouteAddress(tokenIn as Token) as Hash;
         const routeTokenOut = toRouteAddress(tokenOut as Token) as Hash;
         const addresses = UNISWAP_V3_ADDRESSES[chainId];
-        const FEE_TIER = 500; 
 
-        // 1. POOL METADATA
-        let metadata = getCachedPool(routeTokenIn, routeTokenOut, chainId, FEE_TIER);
-        let poolAddress: Hash;
+        // --- 1. (Dynamic Fee Discovery) ---
+        const feeTiers = [3000, 500, 10000, 100];
 
-        if (!metadata) {
+        let poolAddress: Hash | null = null;
+        const cached = getCachedPool(routeTokenIn, routeTokenOut, chainId, 0);
+        
+        if (cached) {
+          poolAddress = cached.poolAddress;
+          bestFee = cached.fee;
+        } else {
+          // If no liquidity then getting it with Multicall
           const t0 = new UniToken(chainId, routeTokenIn, 18, '', '');
           const t1 = new UniToken(chainId, routeTokenOut, 18, '', '');
-          poolAddress = uniswapComputePoolAddress({
+          
+          const poolAddresses = feeTiers.map(fee => uniswapComputePoolAddress({
             factoryAddress: addresses.FACTORY,
             tokenA: t0,
             tokenB: t1,
-            fee: FEE_TIER,
-          }) as Hash;
-        } else {
-          poolAddress = metadata.poolAddress;
+            fee,
+          }) as Hash);
+
+          const liquidityResults = await publicClient.multicall({
+            contracts: poolAddresses.map(addr => ({
+              address: addr,
+              abi: UNISWAP_V3_POOL_ABI,
+              functionName: 'liquidity',
+            }))
+          });
+
+          let maxLiq = -1n;
+          liquidityResults.forEach((res, idx) => {
+            const liq = (res.result as bigint) ?? 0n;
+            if (liq > maxLiq) {
+              maxLiq = liq;
+              bestFee = feeTiers[idx];
+              poolAddress = poolAddresses[idx];
+            }
+          });
         }
 
-        // 2. PARALLEL FETCH (Slot0 + Bitmap)
+        if (!poolAddress) throw new Error("No pool found");
+
+        // --- 2. FETCH POOL DATA ---
+        let metadata = getCachedPool(routeTokenIn, routeTokenOut, chainId, bestFee);
+        
         const lastKnownTick = lastTickCache[poolAddress] || 0;
-        // Using optional chaining or defaults for metadata to avoid 'possibly null'
         const tSpacing = metadata?.tickSpacing || 60; 
         const estimatedWordPos = Math.floor(lastKnownTick / tSpacing) >> 8;
-        
-        const RANGE = 20;
+        const RANGE = 5; 
         const wordPositions = Array.from({ length: RANGE * 2 + 1 }, (_, i) => estimatedWordPos - RANGE + i);
 
-        const [stateResults, bitmapResults] = await Promise.all([
-          publicClient.multicall({
-            contracts: metadata 
-              ? [
-                  { address: poolAddress, abi: UNISWAP_V3_POOL_ABI, functionName: 'slot0' },
-                  { address: poolAddress, abi: UNISWAP_V3_POOL_ABI, functionName: 'liquidity' },
-                ]
-              : [
-                  { address: poolAddress, abi: UNISWAP_V3_POOL_ABI, functionName: 'slot0' },
-                  { address: poolAddress, abi: UNISWAP_V3_POOL_ABI, functionName: 'liquidity' },
-                  { address: routeTokenIn, abi: ERC20_ABI, functionName: 'decimals' },
-                  { address: routeTokenOut, abi: ERC20_ABI, functionName: 'decimals' },
-                  { address: poolAddress, abi: UNISWAP_V3_POOL_ABI, functionName: 'token0' },
-                  { address: poolAddress, abi: UNISWAP_V3_POOL_ABI, functionName: 'tickSpacing' },
-                  { address: poolAddress, abi: UNISWAP_V3_POOL_ABI, functionName: 'fee' }
-                ]
-          }),
-          publicClient.multicall({
-            contracts: wordPositions.map(pos => ({
-              address: poolAddress, abi: UNISWAP_V3_POOL_ABI, functionName: 'tickBitmap', args: [pos]
-            }))
-          })
-        ]);
+        // 2. Forming contract list for request
+        const stateContracts = metadata 
+          ? [
+              { address: poolAddress!, abi: UNISWAP_V3_POOL_ABI, functionName: 'slot0' },
+              { address: poolAddress!, abi: UNISWAP_V3_POOL_ABI, functionName: 'liquidity' },
+            ]
+          : [
+              { address: poolAddress!, abi: UNISWAP_V3_POOL_ABI, functionName: 'slot0' },
+              { address: poolAddress!, abi: UNISWAP_V3_POOL_ABI, functionName: 'liquidity' },
+              { address: routeTokenIn, abi: ERC20_ABI, functionName: 'decimals' },
+              { address: routeTokenOut, abi: ERC20_ABI, functionName: 'decimals' },
+              { address: poolAddress!, abi: UNISWAP_V3_POOL_ABI, functionName: 'token0' },
+              { address: poolAddress!, abi: UNISWAP_V3_POOL_ABI, functionName: 'tickSpacing' },
+              { address: poolAddress!, abi: UNISWAP_V3_POOL_ABI, functionName: 'fee' }
+            ];
 
-        // Explicitly check for results
+        const bitmapContracts = wordPositions.map(pos => ({
+          address: poolAddress!, 
+          abi: UNISWAP_V3_POOL_ABI, 
+          functionName: 'tickBitmap', 
+          args: [pos]
+        }));
+
+        const allResults = await publicClient.multicall({
+          contracts: [...stateContracts, ...bitmapContracts]
+        });
+
+        const stateCount = stateContracts.length;
+        const stateResults = allResults.slice(0, stateCount);
+        const bitmapResults = allResults.slice(stateCount);
+
         const preData = stateResults.map(r => r.result);
         if (!preData[0]) throw new Error("Pool data not found");
 
-        // Metadata handling with explicit type narrowing
         if (!metadata) {
           metadata = {
-            poolAddress,
+            poolAddress: poolAddress!,
             decimalsIn: preData[2] as number,
             decimalsOut: preData[3] as number,
             token0: preData[4] as Hash,
@@ -172,13 +202,12 @@ export function useSwapQuoteV3(amountIn: string, tokenIn: Token | null, tokenOut
             fee: Number(preData[6]),
             timestamp: Date.now()
           };
-          setCachedPool(routeTokenIn, routeTokenOut, chainId, FEE_TIER, metadata);
+          setCachedPool(routeTokenIn, routeTokenOut, chainId, bestFee, metadata);
         }
 
-        // Now safe to use metadata
         const slot0 = preData[0] as [bigint, number, number, number, number, number, boolean];
         const currentLiquidity = preData[1] as bigint;
-        lastTickCache[poolAddress] = slot0[1];
+        lastTickCache[poolAddress!] = slot0[1];
 
         const snapshot: PoolSnapshot = {
           sqrtPriceX96: slot0[0],
@@ -193,7 +222,8 @@ export function useSwapQuoteV3(amountIn: string, tokenIn: Token | null, tokenOut
           initializedTicks: {}
         };
 
-        // 3. EXTRACT TICKS
+        // --- 3. FETCH TICK LIQUIDITY & EXECUTION ---
+        const isTokenInToken0 = routeTokenIn.toLowerCase() === metadata.token0.toLowerCase();
         const initializedIndices: number[] = [];
         Object.entries(snapshot.bitmap).forEach(([wPosStr, val]) => {
           const wPos = Number(wPosStr);
@@ -206,9 +236,6 @@ export function useSwapQuoteV3(amountIn: string, tokenIn: Token | null, tokenOut
           }
         });
 
-        const isTokenInToken0 = routeTokenIn.toLowerCase() === metadata.token0.toLowerCase();
-        
-        // 4. FETCH LIQUIDITY NET
         const relevantTicks = initializedIndices
           .filter(t => isTokenInToken0 ? t < snapshot.currentTick : t > snapshot.currentTick)
           .sort((a, b) => isTokenInToken0 ? b - a : a - b)
@@ -217,21 +244,18 @@ export function useSwapQuoteV3(amountIn: string, tokenIn: Token | null, tokenOut
         if (relevantTicks.length > 0) {
           const ticksResults = await publicClient.multicall({
             contracts: relevantTicks.map(t => ({
-              address: poolAddress, abi: UNISWAP_V3_POOL_ABI, functionName: 'ticks', args: [t]
+              address: poolAddress!, abi: UNISWAP_V3_POOL_ABI, functionName: 'ticks', args: [t]
             }))
           });
-
           relevantTicks.forEach((t, index) => {
-            const res = ticksResults[index]?.result as unknown as readonly [bigint, bigint, bigint, bigint, bigint, bigint, number, boolean];
+            const res = ticksResults[index]?.result as any;
             if (res) snapshot.initializedTicks[t] = { liquidityNet: BigInt(res[1]) };
           });
         }
 
-        // 5. EXECUTION LOOP
         const feeMult = new Decimal(1).minus(new Decimal(metadata.fee).div(1000000));
         let amountRem = new Decimal(debouncedAmount).mul(new Decimal(10).pow(metadata.decimalsIn)).mul(feeMult);
         let currSqrtP = new Decimal(snapshot.sqrtPriceX96.toString()).div(Q96);
-
         let currLiq = new Decimal(snapshot.globalLiquidity.toString());
         let totalOut = new Decimal(0);
         let activeTick = snapshot.currentTick;
@@ -250,7 +274,7 @@ export function useSwapQuoteV3(amountIn: string, tokenIn: Token | null, tokenOut
             let stepOut = isTokenInToken0 
               ? currLiq.mul(currSqrtP.sub(sqrtPNext))
               : currLiq.mul(sqrtPNext.sub(currSqrtP)).div(sqrtPNext.mul(currSqrtP));
-            totalOut = totalOut.add(stepOut);
+            totalOut = totalOut.add(stepOut.abs());
             amountRem = amountRem.sub(amountToNext);
             currSqrtP = sqrtPNext;
             const tInfo = snapshot.initializedTicks[nextTick];
@@ -265,28 +289,29 @@ export function useSwapQuoteV3(amountIn: string, tokenIn: Token | null, tokenOut
               : currSqrtP.add(amountRem.div(currLiq));
             let finalOut = isTokenInToken0
               ? currLiq.mul(currSqrtP.sub(finalSqrtP))
-              : currLiq.mul(finalSqrtP.sub(currSqrtP)).div(finalSqrtP.mul(currSqrtP));
-            totalOut = totalOut.add(finalOut);
+              : currLiq.mul(currSqrtP.sub(finalSqrtP)).div(finalSqrtP.mul(currSqrtP));
+            totalOut = totalOut.add(finalOut.abs());
             amountRem = new Decimal(0);
           }
         }
 
         if (!cancelled) {
           setData(totalOut.div(new Decimal(10).pow(metadata.decimalsOut)).toFixed(metadata.decimalsOut));
-          console.log(`[Success] Calculation: ${(performance.now() - startTime).toFixed(2)}ms`);
+          setActiveFee(bestFee);
+          console.log(`[Success] Best Fee: ${bestFee}, Time: ${(performance.now() - startTime).toFixed(2)}ms`);
         }
       } catch (err) {
-        if (!cancelled) console.error("Quote error:", err);
+        if (!cancelled) {
+          setActiveFee(null);
+          console.error("Quote error:", err);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
 
     updateQoute();
-
-    const interval = setInterval(() => {
-      updateQoute(true);
-    }, 15000);
+    const interval = setInterval(() => updateQoute(true), 15000);
 
     return () => {
       cancelled = true;
@@ -294,5 +319,5 @@ export function useSwapQuoteV3(amountIn: string, tokenIn: Token | null, tokenOut
     };
   }, [debouncedAmount, tokenIn, tokenOut, chainId]);
 
-  return { data, loading };
+  return { data, loading, activeFee };
 }

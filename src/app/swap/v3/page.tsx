@@ -34,17 +34,13 @@ export default function UniswapV3SwapPage() {
   const { balance: balanceIn, refetchBalance: refetchBalanceIn } = useTokenBalance(tokenIn, address)
   const { balance: balanceOut, refetchBalance: refetchBalanceOut } = useTokenBalance(tokenOut, address)
   const { allowance, refetch: refetchAllowance } = useTokenAllowanceV3(tokenIn, address)
-  const quote500 = useSwapQuoteV3(amountIn, tokenIn, tokenOut);
+  const { data: qouteV3Data, loading: quoteLoading, activeFee } = useSwapQuoteV3(amountIn, tokenIn, tokenOut);
   const explorerBase = BLOCK_EXPLORERS[chainId] || 'https://etherscan.io';
 
-  const bestQuote = quote500.data;
-  const quoteLoading = quote500.loading;
-  const bestFee = 500; // Hardcoded for testing your new function
-
   const amountOut = useMemo(() => {
-    if (!quote500.data || !tokenOut) return ''
-    return quote500.data 
-  }, [quote500.data, tokenOut])
+    if (!qouteV3Data || !tokenOut) return ''
+    return qouteV3Data 
+  }, [qouteV3Data, tokenOut])
 
   const needsApproval = useMemo(() => {
     if (allowance == null || !amountIn || !tokenIn) return false
@@ -94,8 +90,8 @@ export default function UniswapV3SwapPage() {
   }
 
   const handleSwap = () => {
-    if (!address || !amountIn || !amountOut || !bestFee || !tokenIn || !tokenOut) return
-    swap(amountIn, amountOut, tokenIn, tokenOut, address, parseFloat(slippage), bestFee)
+    if (!address || !amountIn || !amountOut || !activeFee || !tokenIn || !tokenOut) return
+    swap(amountIn, amountOut, tokenIn, tokenOut, address, parseFloat(slippage), activeFee)
   }
 
   const handleFlipTokens = () => {
@@ -230,37 +226,44 @@ export default function UniswapV3SwapPage() {
             </div>
 
             {/* Fee Tier Info */}
-            {bestFee && amountOut && (
+            {activeFee && amountOut && (
               <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
                 <Info className="h-4 w-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">
-                  Best rate from {(bestFee / 10000).toFixed(2)}% fee tier
+                  Best rate from {(activeFee / 10000).toFixed(2)}% fee tier
                 </span>
               </div>
             )}
 
             {/* All Available Quotes */}
-            {/* {amountIn && allQuotes.length > 0 && tokenOut && (
-              <details className="text-xs">
-                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                  View all fee tiers
-                </summary>
-                <div className="mt-2 space-y-1 pl-4">
-                  {allQuotes.map((q: { fee: Key | null | undefined; data: bigint[] }) => (
-                    <div key={q.fee} className="flex justify-between">
-                      <span className={q.data ? 'text-foreground' : 'text-muted-foreground line-through'}>
-                        {(q.fee / 10000).toFixed(2)}% fee:
-                      </span>
-                      <span className={q.data ? 'font-medium' : 'text-muted-foreground'}>
-                        {q.data && q.data[0] 
-                          ? `${formatUnits(q.data[0], tokenOut.decimals)} ${tokenOut.symbol}`
-                          : 'Pool not available'}
+            {amountIn && qouteV3Data && tokenOut && activeFee && (
+              <div className="mt-4 space-y-2">
+                <div className="flex justify-between text-xs text-muted-foreground px-1">
+                  <span>Auto-selected Fee Tier:</span>
+                  <span className="text-foreground font-medium">
+                    {(activeFee / 10000).toFixed(2)}%
+                  </span>
+                </div>
+                
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
+                    Network Details
+                  </summary>
+                  <div className="mt-2 p-2 bg-black/20 rounded-md space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Router:</span>
+                      <span className="text-foreground">Uniswap V3 (SwapRouter02)</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Best Rate:</span>
+                      <span className="text-green-500 font-medium">
+                        {qouteV3Data} {tokenOut.symbol}
                       </span>
                     </div>
-                  ))}
-                </div>
-              </details>
-            )} */}
+                  </div>
+                </details>
+              </div>
+            )}
 
             {/* Swap Details */}
             {amountIn && amountOut && !quoteLoading && tokenOut && tokenIn && (
@@ -281,11 +284,11 @@ export default function UniswapV3SwapPage() {
                     {(parseFloat(amountOut) * (1 - parseFloat(slippage) / 100)).toFixed(6)} {tokenOut.symbol}
                   </span>
                 </div>
-                {bestQuote && bestQuote[3] && (
+                {qouteV3Data && qouteV3Data[3] && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Est. Gas</span>
                     <span className="font-medium">
-                      ~{Number(bestQuote[3]).toLocaleString()} units
+                      ~{Number(qouteV3Data[3]).toLocaleString()} units
                     </span>
                   </div>
                 )}

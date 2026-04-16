@@ -35,6 +35,11 @@ const components: { title: string; href: string; description: string }[] = [
     title: "Pools",
     href: "/pools",
     description: "Provide liquidity and earn fees"
+  },
+  {
+    title: 'NFT',
+    href: '/nft',
+    description: 'Watch your NFTs & explore market' 
   }
 ]
 

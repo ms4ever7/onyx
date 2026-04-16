@@ -83,12 +83,7 @@ export const getUniswapV3Addresses = (chainId: number): { FACTORY: Hash, ROUTER:
   return addresses
 }
 
-export const FEE_TIERS = {
-  LOWEST: 100,
-  LOW: 500,
-  MEDIUM: 3000,
-  HIGH: 10000,
-} as const
+export const V3_FEE_TIERS = [100, 500, 3000, 10000];
 
 export const UNISWAP_V3_ROUTER_ABI = parseAbi([
   'function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)',
